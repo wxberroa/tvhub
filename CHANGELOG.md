@@ -9,6 +9,7 @@ in `custom_components/tvhub/manifest.json` and `tvhub_addon/config.yaml`, and pu
 ## [Unreleased]
 
 ### Added
+- Installable web app (PWA): manifest, icons and a service worker, so TVHub can be added to a phone's home screen and opens full screen. The service worker caches nothing; it only shows a "Retry" page when the server is unreachable. The favicon now follows the new logo.
 - Add-on watchdog: the Supervisor restarts TVHub if it stops answering.
 - The add-on's Configuration tab shows readable names and descriptions (English and Spanish) for its options.
 - CI guard: a pull request fails if `manifest.json`, the add-on `config.yaml` and the newest CHANGELOG section differ, and a release tag that does not match them stops before building the image.

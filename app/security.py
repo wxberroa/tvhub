@@ -438,7 +438,7 @@ def security_headers(secure, ws_host="", nonce="", framed=False):
         h["Content-Security-Policy"] = (
             f"default-src 'none'; script-src 'nonce-{nonce}'; style-src 'self' 'unsafe-inline'; "
             f"img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self' data:; "
-            f"connect-src 'self' ws://{ws_host} wss://{ws_host}; base-uri 'none'; form-action 'self'; "
+            f"connect-src 'self' ws://{ws_host} wss://{ws_host}; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'self'; "
             f"frame-ancestors {fa}; object-src 'none'")
     return h
 

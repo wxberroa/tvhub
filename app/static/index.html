@@ -4,7 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>TVHub</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b0c10'/%3E%3Crect x='6' y='8' width='20' height='13' rx='3' fill='none' stroke='%23fff' stroke-width='2'/%3E%3Cpath d='M12 25h8' stroke='%23fff' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="TVHub">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="@@BASE@@/manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="@@BASE@@/icons/favicon-32.png">
+<link rel="apple-touch-icon" href="@@BASE@@/icons/apple-touch-icon.png">
 <style>
   :root {
     --bg: #000;
@@ -2102,6 +2109,10 @@ langHooks.push(() => { typeChanged(); liveChanged(); renderHA(); renderAll(); lo
   if (editing && dlg.open) $("dlgTitle").textContent = T("Ajustes de {0}", editing.name); });
 connectControl(); requestAnimationFrame(render); renderAll();
 setWall(true);                                           // the wall is the home page
+}
+// Installable app (PWA): the service worker only adds an offline message. Not inside Home Assistant's Ingress panel.
+if ("serviceWorker" in navigator && !BASE && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
+  navigator.serviceWorker.register("/sw.js").catch(() => { /* optional */ });
 }
 init();
 </script>

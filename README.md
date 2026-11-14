@@ -198,6 +198,8 @@ docker compose up -d --build                       # in the new folder
 
 Use `http://localhost:8080` on the machine running Docker. Browsers only enable WebCodecs on `localhost` and HTTPS; over plain `http://192.168.x.x` the live picture falls back to snapshots. For other devices put TVHub behind an HTTPS reverse proxy and set `TVHUB_TRUST_PROXY=1` (see [Security](#security)). By default it only listens on `127.0.0.1`.
 
+**Install it as an app on your phone.** TVHub is an installable web app: open it in Chrome / Edge (Android) and choose *Install app*, or in Safari (iOS) *Share → Add to Home Screen*. It opens full screen like a remote, with its own icon. The "Install" prompt needs HTTPS (or `localhost`), so put it behind a reverse proxy as described below; on plain `http://192.168.x.x` iOS still adds the shortcut, Android may only offer a shortcut. It caches nothing: if the server is unreachable you get a "Retry" page. Inside Home Assistant use the companion app's sidebar instead.
+
 ## Security
 
 TVHub has no open access: every API call and WebSocket needs a signed-in user or an API token.
