@@ -1,0 +1,13 @@
+name: Feature request
+description: Suggest an improvement or a new TV brand
+labels: [enhancement]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What would you like TVHub to do?
+    validations: {required: true}
+  - type: textarea
+    id: why
+    attributes:
+      label: Why / how would you use it?

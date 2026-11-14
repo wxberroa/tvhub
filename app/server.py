@@ -1758,7 +1758,7 @@ def route(tv, key):
 SEC = None                      # sec.Security, created at startup
 _WS = {}                        # user id -> {(websocket, session hash)}: closed when the session / user goes away
 SAFE = ("GET", "HEAD", "OPTIONS")
-PUBLIC = {("GET", "/"), ("GET", "/api/auth/status"), ("POST", "/api/auth/login"), ("POST", "/api/auth/setup")}
+PUBLIC = {("GET", "/"), ("GET", "/manifest.webmanifest"), ("GET", "/sw.js"), ("GET", "/icons/{name}"), ("GET", "/api/auth/status"), ("POST", "/api/auth/login"), ("POST", "/api/auth/setup")}
 ADMIN_ONLY = {("POST", "/api/tvs"), ("PATCH", "/api/tvs/{id}"), ("DELETE", "/api/tvs/{id}"), ("POST", "/api/tvs/{id}/pair"),
               ("GET", "/api/discover"), ("POST", "/api/discover"), ("GET", "/api/ha"), ("PUT", "/api/ha"), ("POST", "/api/ha/supervisor")}
 JSON_NOSTORE = {"Cache-Control": "no-store"}
@@ -1883,7 +1883,7 @@ async def index(request):
     nonce = secrets.token_urlsafe(16)
     ing = via_ingress(request)
     base = ingress_path(request) if ing else ""
-    html = INDEX_HTML.replace("<script>", f'<script nonce="{nonce}">window.__BASE__={json.dumps(base)};', 1).replace("<script>", f'<script nonce="{nonce}">')
+    html = INDEX_HTML.replace("@@BASE@@", base).replace("<script>", f'<script nonce="{nonce}">window.__BASE__={json.dumps(base)};', 1).replace("<script>", f'<script nonce="{nonce}">')
     resp = web.Response(text=html, content_type="text/html", charset="utf-8")
     host = request.headers.get("X-Forwarded-Host", request.host) if ing else request.host
     for k, v in sec.security_headers(SEC.is_secure(request) or (ing and request.headers.get("X-Forwarded-Proto") == "https"),
@@ -1891,6 +1891,23 @@ async def index(request):
         resp.headers[k] = v
     resp.headers["Cache-Control"] = "no-store"
     return resp
+
+
+PWA_FILES = {"manifest.webmanifest": ("application/manifest+json", "no-cache"), "sw.js": ("text/javascript", "no-cache")}
+PWA_ICONS = {"icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png", "favicon-32.png"}
+
+
+async def pwa_file(request):
+    """Installable-app files (public: the browser fetches the manifest without cookies). A fixed whitelist, no directory access."""
+    name = request.match_info.get("name") or request.path.lstrip("/")
+    if request.path.startswith("/icons/"):
+        if name not in PWA_ICONS:
+            raise web.HTTPNotFound()
+        ctype, cache = "image/png", "public, max-age=86400"
+    else:
+        ctype, cache = PWA_FILES[name]
+    with open(os.path.join(STATIC, "pwa", name), "rb") as f:
+        return web.Response(body=f.read(), content_type=ctype.split(";")[0], headers={"Cache-Control": cache})
 
 
 def set_session_cookie(request, resp, token, remember=False):
@@ -2521,6 +2538,9 @@ def make_app():
     app = web.Application(middlewares=[headers_mw, auth_mw], client_max_size=256 * 1024)
     app.add_routes([
         web.get("/", index),
+        web.get("/manifest.webmanifest", pwa_file),
+        web.get("/sw.js", pwa_file),
+        web.get("/icons/{name}", pwa_file),
         web.get("/api/auth/status", api_auth_status),
         web.post("/api/auth/setup", api_setup),
         web.post("/api/auth/login", api_login),

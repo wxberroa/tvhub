@@ -1,0 +1,7 @@
+configuration:
+  port:
+    name: Direct access port
+    description: Port where TVHub answers outside Home Assistant (http://<home-assistant-ip>:port), with TVHub's own login. The add-on uses the host network, so change it if 8080 is taken. Restart the add-on after changing it. The sidebar panel (Ingress) does not depend on it.
+  install_integration:
+    name: Install the TVHub integration
+    description: Copies the integration into /config/custom_components/tvhub (restart Home Assistant afterwards). Never overwrites a copy installed with HACS or by hand. Off by default; the add-on only writes to Home Assistant's config folder when this is on.

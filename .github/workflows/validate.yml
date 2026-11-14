@@ -21,3 +21,10 @@ jobs:
         with:
           category: integration
           ignore: brands
+
+  versions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: manifest.json, add-on config.yaml and CHANGELOG agree
+        run: .github/scripts/check-versions.sh
