@@ -1,0 +1,32 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: TVHub version
+      placeholder: "0.8.3"
+    validations: {required: true}
+  - type: dropdown
+    id: install
+    attributes:
+      label: How do you run it?
+      options: [Docker, Home Assistant add-on, HACS integration, Native (start.command)]
+    validations: {required: true}
+  - type: input
+    id: tv
+    attributes:
+      label: TV brand / model / platform
+      placeholder: "Sony Bravia (Android TV), LG webOS, Fire TV..."
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations: {required: true}
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Remove tokens, passwords and public IPs before pasting.
+      render: shell
