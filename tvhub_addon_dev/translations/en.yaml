@@ -1,0 +1,4 @@
+configuration:
+  port:
+    name: Direct access port
+    description: Port where this test build answers outside Home Assistant. 8081 by default so it can run next to the stable add-on. Restart the add-on after changing it.

@@ -1,0 +1,4 @@
+configuration:
+  port:
+    name: Puerto de acceso directo
+    description: Puerto en el que esta versión de pruebas responde fuera de Home Assistant. 8081 por defecto para convivir con el add-on estable. Reinicia el add-on tras cambiarlo.

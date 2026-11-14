@@ -17,6 +17,8 @@ panel_title: TVHub
 host_network: true
 # Persistent /data (TV list, keys, ADB key) is automatic for every add-on.
 init: false
+# The Supervisor restarts TVHub if this stops answering (the Ingress port, whatever the direct-access port is).
+watchdog: http://[HOST]:[PORT:8099]/api/auth/status
 # Lets TVHub ask the Supervisor for the Mosquitto add-on's login (optional: it works without Mosquitto too).
 services:
   - mqtt:want

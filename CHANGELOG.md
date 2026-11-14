@@ -4,9 +4,14 @@ All notable changes to TVHub. Format based on [Keep a Changelog](https://keepach
 versions follow [SemVer](https://semver.org/). The text of each version is what its GitHub Release shows.
 
 Write new entries under **Unreleased**. To release: rename that heading to `## [X.Y.Z] - YYYY-MM-DD`, bump the version
-in `custom_components/tvhub/manifest.json` and `tvhub_addon/config.yaml`, and push the tag `vX.Y.Z`.
+in `custom_components/tvhub/manifest.json` and `tvhub_addon/config.yaml`, and push the tag `vX.Y.Z`. CI checks that those versions, the CHANGELOG and the tag agree (`.github/scripts/check-versions.sh`).
 
 ## [Unreleased]
+
+### Added
+- Add-on watchdog: the Supervisor restarts TVHub if it stops answering.
+- The add-on's Configuration tab shows readable names and descriptions (English and Spanish) for its options.
+- CI guard: a pull request fails if `manifest.json`, the add-on `config.yaml` and the newest CHANGELOG section differ, and a release tag that does not match them stops before building the image.
 
 ## [0.8.3] - 2026-11-13
 
