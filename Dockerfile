@@ -1,4 +1,4 @@
-FROM python:3.12-slim-bookworm
+FROM python:3.15-slim-bookworm
 
 # adb comes from Debian's android-tools. Inside a Linux container it is not subject to
 # macOS "Local Network" privacy, which blocks the native adb binary on a Mac.
