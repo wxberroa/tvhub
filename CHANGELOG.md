@@ -8,6 +8,9 @@ in `custom_components/tvhub/manifest.json` and `tvhub_addon/config.yaml`, and pu
 
 ## [Unreleased]
 
+### Added
+- Automated tests (pytest) for password rules, security headers, PWA routes and the first-run setup/login flow, run in CI.
+
 ## [0.8.4] - 2026-11-14
 
 ### Added
