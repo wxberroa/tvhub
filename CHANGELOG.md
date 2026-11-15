@@ -8,6 +8,8 @@ in `custom_components/tvhub/manifest.json` and `tvhub_addon/config.yaml`, and pu
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-11-15
+
 ### Changed
 - Adding a TV that needs pairing (LG webOS, Samsung, Hisense VIDAA, Sony) now opens the pairing step right away instead of leaving you to find it in Settings. LG and Samsung start it for you (just accept the prompt on the TV), Hisense shows the PIN on the TV and waits for it, Sony asks for the pre-shared key; the window closes when pairing succeeds. Android TV, Fire TV and Roku are unchanged: they never ask.
 
