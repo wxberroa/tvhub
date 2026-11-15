@@ -22,7 +22,7 @@ jobs:
   image:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: The tag matches manifest.json, the add-on and the CHANGELOG
         if: startsWith(github.ref, 'refs/tags/v')
         run: .github/scripts/check-versions.sh
@@ -58,7 +58,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Create the GitHub Release (what HACS reads)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
