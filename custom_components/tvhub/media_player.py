@@ -184,7 +184,9 @@ class TVHubPlayer(CoordinatorEntity[TVHubCoordinator], MediaPlayerEntity):
         """Open a media URL on the TV (LG webOS). Media-source ids are resolved to a URL the TV can reach."""
         if media_source.is_media_source_id(media_id):
             media_id = (await media_source.async_resolve_media(self.hass, media_id, self.entity_id)).url
-        await self._do(self.coordinator.client.play(self._tv_id, async_process_play_media_url(self.hass, media_id)))
+        extra = kwargs.get("extra")
+        await self._do(self.coordinator.client.play(self._tv_id, async_process_play_media_url(self.hass, media_id),
+                                                    str(media_type), extra if isinstance(extra, dict) else None))
 
     async def async_select_source(self, source: str) -> None:
         for a in self.coordinator.apps.get(self._tv_id, []):

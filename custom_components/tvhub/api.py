@@ -48,8 +48,8 @@ class TVHubClient:
     async def launch(self, tv_id: str, pkg: str) -> None:
         await self._req("POST", f"/api/tvs/{tv_id}/launch", {"pkg": pkg})
 
-    async def play(self, tv_id: str, url: str) -> None:
-        await self._req("POST", f"/api/tvs/{tv_id}/play", {"url": url})
+    async def play(self, tv_id: str, url: str, media_type: str = "", extra: dict[str, Any] | None = None) -> None:
+        await self._req("POST", f"/api/tvs/{tv_id}/play", {"url": url, "type": media_type, "extra": extra or {}})
 
     async def volume(self, tv_id: str, level: int) -> None:
         await self._req("POST", f"/api/tvs/{tv_id}/volume", {"level": level})
