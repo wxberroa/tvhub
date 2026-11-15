@@ -8,6 +8,15 @@ in `custom_components/tvhub/manifest.json` and `tvhub_addon/config.yaml`, and pu
 
 ## [Unreleased]
 
+## [0.8.5] - 2026-11-14
+
+### Added
+- Automated tests (pytest) for password rules, security headers, PWA routes and the first-run setup/login flow, run in CI.
+
+### Changed
+- The "TVHub detected" card in Home Assistant now says what it is adding: the add-on address and the list of TVs that will become media players.
+- Dependencies: `aiowebostv` 1.x (LG webOS, verified on a real TV), minimum `aiohttp` 3.14.5, `paho-mqtt` 2.2.0 and `argon2-cffi` 25.1; CI actions (`checkout`, `docker/*`) updated.
+
 ## [0.8.4] - 2026-11-14
 
 ### Added

@@ -16,6 +16,7 @@ from .const import DEFAULT_PORT, DOMAIN
 class TVHubConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
     _hassio: dict[str, Any]
+    _tvs: list[str] | None = None
 
     async def async_step_hassio(self, discovery_info: HassioServiceInfo) -> ConfigFlowResult:
         """The TVHub add-on announced itself through the Supervisor (host, port and an API token)."""
@@ -39,7 +40,17 @@ class TVHubConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "cannot_connect"
             else:
                 return self.async_create_entry(title=f"TVHub ({d[CONF_HOST]})", data=d)
-        return self.async_show_form(step_id="hassio_confirm", description_placeholders={"addon": d[CONF_HOST]}, errors=errors)
+        if self._tvs is None:                # best effort: show which TVs will be added
+            try:
+                client = TVHubClient(async_get_clientsession(self.hass), d[CONF_HOST], d[CONF_PORT], d[CONF_TOKEN], d[CONF_SSL])
+                self._tvs = [str(t.get("name") or t.get("id")) for t in await client.tvs()]
+            except Exception:  # noqa: BLE001
+                self._tvs = []
+        names = self._tvs
+        listing = ", ".join(names) if names else "—"
+        return self.async_show_form(step_id="hassio_confirm", errors=errors, description_placeholders={
+            "addon": d[CONF_HOST], "address": f"{d[CONF_HOST]}:{d[CONF_PORT]}",
+            "count": str(len(names)), "tvs": listing})
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
