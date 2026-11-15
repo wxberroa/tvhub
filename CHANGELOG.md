@@ -8,6 +8,14 @@ in `custom_components/tvhub/manifest.json` and `tvhub_addon/config.yaml`, and pu
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-11-15
+
+### Changed
+- Adding a TV that needs pairing (LG webOS, Samsung, Hisense VIDAA, Sony) now opens the pairing step right away instead of leaving you to find it in Settings. LG and Samsung start it for you (just accept the prompt on the TV), Hisense shows the PIN on the TV and waits for it, Sony asks for the pre-shared key; the window closes when pairing succeeds. Android TV, Fire TV and Roku are unchanged: they never ask.
+
+### Added
+- LG webOS player page: `play_media` now opens TVHub's own player in the TV's browser (title, artist, album, cover, progress) instead of the browser's bare audio player. Home Assistant's pause / play / stop reach the page, and the next track is pushed to the open page without reopening the browser. Title, artist and cover come from what Home Assistant sends (`extra`); Music Assistant sends none, so the integration reads them from Music Assistant's own entity for that TV (matched exactly through the entity registry, by name as a fallback) and keeps the page updated, including the track's duration and position. The add-on log records what arrives (`play_url ... extra=...`). On the TV the player page opens in the browser only (the media viewer is not tried for it).
+
 ## [0.9.1] - 2026-11-15
 
 ### Added

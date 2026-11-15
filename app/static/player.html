@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TVHub</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b0b0d; color: #f4f4f6; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+  body { display: -webkit-box; display: flex; align-items: center; justify-content: center; }
+  #bg { position: fixed; top: 0; right: 0; bottom: 0; left: 0; background-size: cover; background-position: center; filter: blur(60px) brightness(.45); opacity: 0; transition: opacity .6s; }
+  #bg.on { opacity: 1; }
+  .card { position: relative; width: 78%; max-width: 1400px; display: flex; align-items: center; }
+  #cover { width: 34vh; height: 34vh; min-width: 220px; min-height: 220px; border-radius: 22px; background: #1d1d21 center/cover no-repeat; box-shadow: 0 20px 60px rgba(0,0,0,.55); flex: none; }
+  #cover.none { display: flex; align-items: center; justify-content: center; font-size: 80px; color: #f5654a; }
+  .info { margin-left: 5vw; min-width: 0; flex: 1; }
+  .brand { color: #f5654a; font-weight: 700; letter-spacing: .08em; font-size: 2.2vh; text-transform: uppercase; }
+  h1 { margin: 1.4vh 0 .6vh; font-size: 6vh; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  #sub { font-size: 3.2vh; color: #c9c9d1; margin-bottom: 4vh; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar { height: 1vh; background: rgba(255,255,255,.18); border-radius: 1vh; overflow: hidden; }
+  #fill { height: 100%; width: 0; background: #f5654a; }
+  .times { display: flex; justify-content: space-between; margin-top: 1.2vh; color: #a8a8b2; font-size: 2.4vh; }
+  #state { margin-top: 3vh; font-size: 2.8vh; color: #c9c9d1; }
+  #go { display: none; margin-top: 3vh; padding: 1.6vh 4vh; font-size: 3vh; border: 0; border-radius: 3vh; background: #f5654a; color: #fff; font-weight: 600; }
+</style></head>
+<body>
+<div id="bg"></div>
+<div class="card">
+  <div id="cover" class="none">♪</div>
+  <div class="info">
+    <div class="brand">TVHub</div>
+    <h1 id="title">…</h1>
+    <div id="sub"></div>
+    <div class="bar"><div id="fill"></div></div>
+    <div class="times"><span id="cur">0:00</span><span id="dur"></span></div>
+    <div id="state"></div>
+    <button id="go" type="button">Reproducir</button>
+  </div>
+</div>
+<audio id="a" preload="auto"></audio>
+<script type="application/json" id="cfg">@@CFG@@</script>
+<script>
+(function () {
+  var CFG = JSON.parse(document.getElementById("cfg").textContent);
+  var a = document.getElementById("a"), $ = function (i) { return document.getElementById(i); };
+  var ws = null, wantPlay = true, M = {}, base = null;
+  function fmt(s) { if (!isFinite(s) || s < 0) return ""; s = Math.floor(s); var m = Math.floor(s / 60), r = s % 60; return m + ":" + (r < 10 ? "0" : "") + r; }
+  function meta(m, merge) {
+    M = merge ? Object.assign({}, M, m) : (m || {});
+    if (m && m.position != null) base = { pos: m.position, at: Date.now() };
+    m = M;
+    $("title").textContent = m.title || "Reproduciendo";
+    $("sub").textContent = [m.artist, m.album].filter(Boolean).join(" · ");
+    var c = $("cover"), bg = $("bg");
+    if (m.image) { c.className = ""; c.textContent = ""; c.style.backgroundImage = "url(" + JSON.stringify(m.image) + ")"; bg.style.backgroundImage = c.style.backgroundImage; bg.className = "on"; }
+    else { c.className = "none"; c.textContent = "♪"; c.style.backgroundImage = ""; bg.className = ""; }
+    document.title = (m.title || "TVHub");
+  }
+  function report() { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ state: a.paused ? "paused" : "playing", pos: a.currentTime || 0, dur: isFinite(a.duration) ? a.duration : 0 })); }
+  function show() {
+    var cur = a.currentTime, dur = a.duration;
+    if (M.duration > 0) {                      // Music Assistant streams one endless flow: use the track's own time
+      dur = M.duration;
+      cur = base ? base.pos + (a.paused ? 0 : (Date.now() - base.at) / 1000) : 0;
+      if (a.paused && base) { base.pos = cur; base.at = Date.now(); }
+      cur = Math.max(0, Math.min(cur, dur));
+    }
+    $("cur").textContent = fmt(cur);
+    $("dur").textContent = isFinite(dur) ? fmt(dur) : "";
+    $("fill").style.width = (isFinite(dur) && dur > 0 ? Math.min(100, 100 * cur / dur) : 0) + "%";
+    $("state").textContent = a.paused ? "Pausado" : "Reproduciendo";
+  }
+  function play() {
+    wantPlay = true;
+    var p = a.play();
+    if (p && p.catch) p.catch(function () { $("go").style.display = "inline-block"; $("go").focus(); });
+  }
+  function load(url, m) { base = null; meta(m); a.src = url; a.load(); play(); }
+  $("go").onclick = function () { $("go").style.display = "none"; play(); };
+  a.addEventListener("playing", function () { $("go").style.display = "none"; show(); report(); });
+  a.addEventListener("pause", function () { show(); report(); });
+  a.addEventListener("ended", function () { show(); if (ws && ws.readyState === 1) ws.send(JSON.stringify({ state: "ended" })); });
+  a.addEventListener("error", function () { $("state").textContent = "No se pudo reproducir el audio"; if (ws && ws.readyState === 1) ws.send(JSON.stringify({ state: "error" })); });
+  setInterval(function () { show(); report(); }, 2000);
+  function connect() {
+    ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws/player/" + CFG.token);
+    ws.onmessage = function (e) {
+      var m; try { m = JSON.parse(e.data); } catch (_) { return; }
+      if (m.cmd === "load") load(m.url, m.meta);
+      else if (m.cmd === "meta") meta(m.meta, true);
+      else if (m.cmd === "play") play();
+      else if (m.cmd === "pause") a.pause();
+      else if (m.cmd === "toggle") { if (a.paused) play(); else a.pause(); }
+      else if (m.cmd === "stop") { a.pause(); a.currentTime = 0; show(); report(); }
+    };
+    ws.onclose = function () { setTimeout(connect, 2000); };
+  }
+  connect();
+  load(CFG.url, CFG.meta);
+})();
+</script>
+</body></html>

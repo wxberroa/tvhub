@@ -161,7 +161,7 @@ data: { key: HOME }               # DPAD_UP, DPAD_CENTER, BACK, MENU, MEDIA_PLAY
 
 ### Play a URL on an LG TV (experimental)
 
-LG webOS TVs accept `media_player.play_media` with a URL (or a media-source id), so you can send them an audio or video file from an automation, and in principle use them as a player in Music Assistant (provider *Home Assistant Media Players*). TVHub opens the URL in the TV's media viewer and falls back to its browser; what plays, and how well, depends on the TV model, so treat it as **experimental**. It does not report the track or its progress back to Home Assistant. Other brands do not support it yet.
+LG webOS TVs accept `media_player.play_media` with a URL (or a media-source id), so you can send them an audio or video file from an automation, and in principle use them as a player in Music Assistant (provider *Home Assistant Media Players*). TVHub opens the URL in the TV's media viewer and falls back to its browser (newer webOS models, e.g. the UQ series, have no media viewer for URLs, so the file opens in the TV's web browser); TVHub then shows its own player page there (title, artist and cover when Home Assistant sends them; pause, play and stop from Home Assistant work), and the next track is pushed to the open page; what plays, and how well, depends on the TV model, so treat it as **experimental**. It does not report the track or its progress back to Home Assistant. Other brands do not support it yet.
 
 ```yaml
 action: media_player.play_media

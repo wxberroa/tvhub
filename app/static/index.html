@@ -1044,6 +1044,8 @@ const I18N = {
 "Crea el primer usuario": ["Create the first user", "Crie o primeiro usuário", "Créez le premier utilisateur", "Erstelle den ersten Benutzer"],
 "Estás en el add-on de Home Assistant: abre TVHub desde la barra lateral de Home Assistant (ahí ya eres administrador y puedes crear usuarios), o crea aquí el administrador con el código de la pestaña Registro del add-on.": ["You are using the Home Assistant add-on: open TVHub from Home Assistant's sidebar (you are already an administrator there and can create users), or create the administrator here with the code from the add-on's Log tab.", "Você está no add-on do Home Assistant: abra o TVHub pela barra lateral do Home Assistant (lá você já é administrador e pode criar usuários), ou crie aqui o administrador com o código da aba Registro do add-on.", "Vous utilisez l'add-on Home Assistant : ouvrez TVHub depuis la barre latérale de Home Assistant (vous y êtes déjà administrateur et pouvez créer des utilisateurs), ou créez ici l'administrateur avec le code de l'onglet Journal de l'add-on.", "Du nutzt das Home-Assistant-Add-on: Öffne TVHub über die Seitenleiste von Home Assistant (dort bist du bereits Administrator und kannst Benutzer anlegen) oder lege hier den Administrator mit dem Code aus dem Protokoll-Tab des Add-ons an."],
 "Puedes entrar con tu usuario y contraseña de Home Assistant.": ["You can sign in with your Home Assistant username and password.", "Você pode entrar com seu usuário e senha do Home Assistant.", "Vous pouvez vous connecter avec votre identifiant et mot de passe Home Assistant.", "Du kannst dich mit deinem Home-Assistant-Benutzernamen und -Passwort anmelden."],
+"Falta emparejar: sigue los pasos de esta ventana": ["Pairing needed: follow the steps in this window", "Falta emparelhar: siga os passos desta janela", "Appairage requis : suivez les étapes de cette fenêtre", "Kopplung nötig: folge den Schritten in diesem Fenster"],
+"TV emparejada": ["TV paired", "TV emparelhada", "TV appairée", "TV gekoppelt"],
 "Será el administrador. Hasta que exista, nadie puede usar TVHub. El código de configuración aparece una sola vez en el registro del contenedor:": ["It will be the administrator. Until it exists, nobody can use TVHub. The setup code appears once in the container log:", "Será o administrador. Até que exista, ninguém pode usar o TVHub. O código de configuração aparece uma única vez no registro do contêiner:", "Ce sera l'administrateur. Tant qu'il n'existe pas, personne ne peut utiliser TVHub. Le code de configuration apparaît une seule fois dans le journal du conteneur :", "Das wird der Administrator. Bis er existiert, kann niemand TVHub nutzen. Den Einrichtungscode zeigt das Container-Log einmalig an:"],
 "Código de configuración": ["Setup code", "Código de configuração", "Code de configuration", "Einrichtungscode"],
 "Repite la contraseña": ["Repeat the password", "Repita a senha", "Répétez le mot de passe", "Passwort wiederholen"],
@@ -1759,8 +1761,7 @@ $("tvForm").addEventListener("submit", async (e) => {
     const j = await r.json();
     if (!r.ok) { $("formErr").textContent = Tm(j.error || "No se pudo guardar"); return; }
     dlg.close();
-    if (!editing) { await new Promise((ok) => setTimeout(ok, 150)); selectTV(j.id); }
-    toast(T(editing ? "Guardado" : "TV añadida"));
+    if (editing) toast(T("Guardado")); else await afterTVAdded(j, true);
   } catch (_) { $("formErr").textContent = T("No se pudo contactar con el servidor"); }
 });
 $("btnDelete").onclick = async () => {
@@ -1769,11 +1770,36 @@ $("btnDelete").onclick = async () => {
   const wasCur = editing.id === cur; dlg.close();
   if (wasCur) { cur = ""; videoStarted = false; stopVideo(); }
 };
+// Everything that follows adding a TV, whichever screen added it (the form or the network search).
+async function afterTVAdded(tv, select) {
+  toast(T("TV añadida"));
+  if (select) { await new Promise((ok) => setTimeout(ok, 150)); selectTV(tv.id); }
+  offerPairing(tv.id);
+}
+// A TV that was just added and still needs pairing: open the pairing step right away (no hunting through Settings).
+// Only the brands that really need it get here: the TV reports "needs_pairing" itself; Android TVs and the rest never do.
+async function offerPairing(id) {
+  for (let i = 0; i < 16; i++) {
+    const t = tvs.find((x) => x.id === id);
+    if (t && t.state === "needs_pairing") {
+      document.querySelectorAll("dialog[open]").forEach((d) => d.close());     // e.g. the network search that added it
+      openDialog(t);
+      toast(T("Falta emparejar: sigue los pasos de esta ventana"));
+      if (t.type === "webos" || t.type === "samsung" || t.type === "vidaa") pair();   // these need no typing first: the TV asks or shows a PIN
+      else $("fPin").focus();                                                           // Sony: the pre-shared key
+      if (t.type === "vidaa") $("fPin").focus();
+      return;
+    }
+    if (t && t.state === "device") return;
+    await new Promise((ok) => setTimeout(ok, 500));
+  }
+}
 async function pair(pin) {
   $("pairMsg").textContent = editing.type === "webos" || editing.type === "samsung" ? T("Acepta el aviso en la TV…") : "…";
   try {
     const r = await fetch(withQ(`/api/tvs/${editing.id}/pair`), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pin ? { pin } : {}) });
     const j = await r.json(); $("pairMsg").textContent = j.message || j.error || "";
+    if (r.ok && j.ok && (pin || editing.type === "webos" || editing.type === "samsung")) { toast(T("TV emparejada")); dlg.close(); }   // done: nothing more to type
   } catch (_) { $("pairMsg").textContent = T("No se pudo contactar con el servidor"); }
 }
 $("btnPairStart").onclick = () => pair();
@@ -1993,8 +2019,8 @@ function scanRow(f) {
           body: JSON.stringify({ name: f.name.slice(0, 40), type: f.type, host: f.host, port: f.port }) });
         const j = await r.json();
         if (!r.ok) { $("scanErr").textContent = Tm(j.error || "No se pudo añadir"); b.disabled = false; return; }
-        cell.innerHTML = `<span class="tag">${esc(T("Añadida ✓"))}</span>`; toast(T("TV añadida"));
-        if (!curTV()) { await new Promise((ok) => setTimeout(ok, 150)); selectTV(j.id); }
+        cell.innerHTML = `<span class="tag">${esc(T("Añadida ✓"))}</span>`;
+        await afterTVAdded(j, !curTV());
       } catch (_) { $("scanErr").textContent = T("No se pudo contactar con el servidor"); b.disabled = false; }
     };
     cell.appendChild(b);

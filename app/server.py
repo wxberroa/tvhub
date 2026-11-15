@@ -32,6 +32,7 @@ import aiohttp
 from aiohttp import web, WSMsgType
 
 import addon
+import player
 
 import icons
 import security as sec
@@ -202,7 +203,7 @@ class Driver:
         raise NotImplementedError
 
     # play a media URL (HTTP/HTTPS) on the TV: drivers with caps["play_media"] override this
-    async def play_url(self, url):
+    async def play_url(self, url, page=False):
         raise NotImplementedError
 
     # video inputs (HDMI…): drivers that can switch them override these
@@ -783,6 +784,7 @@ class WebosDriver(Driver):
         self.pair_msg = ""
         self.pairing = False
         self.playing = False
+        self.no_viewer = False
 
     # -- persisted pairing key (one per TV id)
     def _keys_path(self):
@@ -986,18 +988,23 @@ class WebosDriver(Driver):
         url = a.get("largeIcon") or a.get("icon")
         return await icons.fetch_remote(url, self.host) if url else None
 
-    async def play_url(self, url):
-        """Open a media URL on the TV: the media viewer first (plays audio / video / images), the browser as a fallback."""
+    async def play_url(self, url, page=False):
+        """Open a URL on the TV. A media file goes to the media viewer first (browser as a fallback); `page=True` is a web
+        page (TVHub's player), which only the browser can show."""
         c = self.client
         if c is None or self.state != "device":
             raise RuntimeError("La TV no está conectada")
         last = None
-        for uri in ("media.viewer/open", "system.launcher/open"):
+        for uri in ("system.launcher/open",) if page else ("media.viewer/open", "system.launcher/open"):
+            if uri == "media.viewer/open" and self.no_viewer:
+                continue                                            # this model has no photo/video viewer: use the browser
             try:
                 await c.request(uri, {"target": url})
                 return
             except Exception as e:                                  # noqa: BLE001 - model-dependent: try the next way
                 last = e
+                if uri == "media.viewer/open" and "Unsupported Application Type" in str(e):
+                    self.no_viewer = True                           # newer webOS: remember it, skip the failing call next time
                 log(f"webos play_url via {uri}: {e}")
         raise RuntimeError(f"La TV no pudo abrir la dirección ({last})")
 
@@ -1778,7 +1785,7 @@ def route(tv, key):
 SEC = None                      # sec.Security, created at startup
 _WS = {}                        # user id -> {(websocket, session hash)}: closed when the session / user goes away
 SAFE = ("GET", "HEAD", "OPTIONS")
-PUBLIC = {("GET", "/"), ("GET", "/manifest.webmanifest"), ("GET", "/sw.js"), ("GET", "/icons/{name}"), ("GET", "/api/auth/status"), ("POST", "/api/auth/login"), ("POST", "/api/auth/setup")}
+PUBLIC = {("GET", "/player/{token}"), ("GET", "/ws/player/{token}"), ("GET", "/"), ("GET", "/manifest.webmanifest"), ("GET", "/sw.js"), ("GET", "/icons/{name}"), ("GET", "/api/auth/status"), ("POST", "/api/auth/login"), ("POST", "/api/auth/setup")}
 ADMIN_ONLY = {("POST", "/api/tvs"), ("PATCH", "/api/tvs/{id}"), ("DELETE", "/api/tvs/{id}"), ("POST", "/api/tvs/{id}/pair"),
               ("GET", "/api/discover"), ("POST", "/api/discover"), ("GET", "/api/ha"), ("PUT", "/api/ha"), ("POST", "/api/ha/supervisor")}
 JSON_NOSTORE = {"Cache-Control": "no-store"}
@@ -2306,24 +2313,112 @@ async def api_launch(request):
 URL_RE = re.compile(r"^https?://[^\s\x00-\x1f]{1,2040}$", re.I)
 
 
+PLAYERS = player.Sessions()
+PLAYER_HTML = None
+
+
+def direct_port():
+    port = int(os.environ.get("PORT", "8080"))
+    return addon_port(port) if INGRESS else port
+
+
 async def api_play(request):
-    """Open a media URL on the TV (what Home Assistant's media_player.play_media / Music Assistant send)."""
+    """Open a media URL on the TV (what Home Assistant's media_player.play_media / Music Assistant send).
+
+    The TV gets TVHub's own player page (title, artist, cover, progress) and the audio plays inside it; while that page is
+    open, the next track is pushed to it instead of reopening the browser."""
     tv = get_tv(request)
     try:
         d = await request.json()
     except ValueError:
         d = {}
-    url = str(d.get("url", "")).strip() if isinstance(d, dict) else ""
+    if not isinstance(d, dict):
+        d = {}
+    url = str(d.get("url", "")).strip()
     if not URL_RE.fullmatch(url):
         return jerr("Indica una dirección http:// o https:// válida")
     if not tv.caps.get("play_media"):
         return jerr("Esta TV no permite reproducir una dirección")
-    try:
-        await tv.play_url(url)
-    except (RuntimeError, ValueError) as e:
-        return jerr(str(e))
+    extra = d.get("extra") if isinstance(d.get("extra"), dict) else {}
+    meta = player.clean_meta(d.get("meta"), extra, url=url)
+    log(f"play_url {tv.cfg.get('name')}: type={str(d.get('type', ''))[:20]!r} extra={json.dumps(extra, default=str)[:400]} meta={meta}")
+    live = PLAYERS.live(tv.id)
+    if live:                                                 # the page is already open on the TV: just load the next one
+        live["url"], live["meta"] = url, meta
+        await PLAYERS.send(live, {"cmd": "load", "url": url, "meta": meta})
+    else:
+        ip = player.lan_ip(tv.host)
+        if not ip:
+            return jerr("TVHub no encuentra su dirección en la red de la TV")
+        token = PLAYERS.create(tv.id, url, meta)
+        port = request.url.port or direct_port()
+        try:
+            await tv.play_url(f"http://{ip}:{port}/player/{token}", page=True)
+        except (RuntimeError, ValueError) as e:
+            PLAYERS.drop(token)
+            return jerr(str(e))
     SEC.audit("play_url", request, user=request["pr"]["name"], target=tv.cfg.get("name"))
     return web.json_response({"ok": True}, headers=JSON_NOSTORE)
+
+
+async def api_nowplaying(request):
+    """Home Assistant tells TVHub what is playing (from Music Assistant's own entity) so the TV's player page can show it."""
+    tv = get_tv(request)
+    try:
+        d = await request.json()
+    except ValueError:
+        d = {}
+    meta = player.clean_meta(d if isinstance(d, dict) else {})
+    live = PLAYERS.live(tv.id)
+    if live and meta:
+        live["meta"] = {**live["meta"], **meta}
+        await PLAYERS.send(live, {"cmd": "meta", "meta": meta})
+    return web.json_response({"ok": True, "live": bool(live)}, headers=JSON_NOSTORE)
+
+
+async def player_page(request):
+    """The page the TV's browser opens. The unguessable token in the URL is the only credential (the TV has no login)."""
+    global PLAYER_HTML
+    sess = PLAYERS.get(request.match_info["token"])
+    if sess is None:
+        return web.Response(status=404, text="Reproductor caducado")
+    if PLAYER_HTML is None or os.environ.get("TVHUB_DEV"):
+        with open(os.path.join(STATIC, "player.html"), encoding="utf-8") as f:
+            PLAYER_HTML = f.read()
+    nonce = secrets.token_urlsafe(16)
+    cfg = json.dumps({"token": request.match_info["token"], "url": sess["url"], "meta": sess["meta"]}).replace("<", "\\u003c")
+    html = PLAYER_HTML.replace("@@CFG@@", cfg).replace("<script>", f'<script nonce="{nonce}">', 1)
+    resp = web.Response(text=html, content_type="text/html", charset="utf-8")
+    resp.headers["Content-Security-Policy"] = (
+        f"default-src 'none'; script-src 'nonce-{nonce}'; style-src 'unsafe-inline'; img-src http: https: data:; "
+        f"media-src http: https:; connect-src ws://{request.host} wss://{request.host}; base-uri 'none'; form-action 'none'; "
+        f"frame-ancestors 'none'; object-src 'none'")
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+async def ws_player(request):
+    sess = PLAYERS.get(request.match_info["token"])
+    if sess is None:
+        return web.Response(status=404)
+    ws = web.WebSocketResponse(heartbeat=20, max_msg_size=4096)
+    await ws.prepare(request)
+    sess["clients"].add(ws)
+    try:
+        async for msg in ws:
+            if msg.type == WSMsgType.TEXT:
+                try:
+                    st = json.loads(msg.data)
+                except ValueError:
+                    continue
+                if isinstance(st, dict):
+                    sess["state"] = {k: st[k] for k in ("state", "pos", "dur") if k in st}
+    finally:
+        sess["clients"].discard(ws)
+    return ws
+
+
+PLAYER_KEYS = {"MEDIA_PLAY": "play", "MEDIA_PAUSE": "pause", "MEDIA_PLAY_PAUSE": "toggle", "MEDIA_STOP": "stop"}
 
 
 def _body_keys(d):
@@ -2334,6 +2429,10 @@ def _body_keys(d):
 async def api_key(request):
     tv = get_tv(request)
     for k in _body_keys(await request.json()):
+        live = PLAYERS.live(tv.id) if k in PLAYER_KEYS else None
+        if live:                                                 # TVHub's player page is open: play / pause / stop it there
+            await PLAYERS.send(live, {"cmd": PLAYER_KEYS[k]})
+            continue
         route(tv, k).key(k)
     return web.json_response({"ok": True})
 
@@ -2626,6 +2725,9 @@ def make_app():
         web.post("/api/tvs/{id}/input", api_set_input),
         web.post("/api/tvs/{id}/show", api_show),
         web.get("/api/tvs/{id}/appicon/{pkg}", api_appicon),
+        web.post("/api/tvs/{id}/nowplaying", api_nowplaying),
+        web.get("/player/{token}", player_page),
+        web.get("/ws/player/{token}", ws_player),
         web.get("/ws/video", ws_video),
         web.get("/ws/control", ws_control),
     ])
