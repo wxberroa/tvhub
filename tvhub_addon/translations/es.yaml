@@ -5,3 +5,6 @@ configuration:
   install_integration:
     name: Instalar la integración de TVHub
     description: Copia la integración en /config/custom_components/tvhub (reinicia Home Assistant después). Nunca pisa una copia instalada con HACS o a mano. Desactivada por defecto; el add-on solo escribe en la carpeta de configuración de Home Assistant cuando está activada.
+  ha_login:
+    name: Entrar con Home Assistant (puerto directo)
+    description: "Permite entrar por el puerto de acceso directo con el usuario y la contraseña de Home Assistant. Reciben el rol user (controlan las TV, sin ajustes). Un nombre que ya es cuenta de TVHub nunca se asocia. Desactivado por defecto."

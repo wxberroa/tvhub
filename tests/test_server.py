@@ -48,3 +48,75 @@ async def test_setup_login_and_admin_only(client):
     assert bad.status == 409                                  # setup is closed once an admin exists
     r = await client.post("/api/auth/login", json={"username": "admin", "password": "wrong-password-x"}, headers=h)
     assert r.status in (400, 401, 403, 429)
+
+
+# ---- optional "sign in with Home Assistant" on the direct port (add-on only)
+
+@pytest.fixture
+async def ha_client(client, monkeypatch):
+    import addon
+    monkeypatch.setattr(server, "INGRESS", True)
+    monkeypatch.setattr(addon, "options", lambda d: {"ha_login": True})
+    accepted = {"maria": "ha-secret-pw"}
+
+    async def fake_auth(user, pw):
+        return accepted.get(user) == pw
+    monkeypatch.setattr(addon, "ha_auth", fake_auth)
+    h = {"Origin": str(client.make_url("")).rstrip("/")}
+    r = await client.post("/api/auth/setup", json={"username": "admin", "password": "tv-hub-4-the-lounge",
+                                                   "code": server.SEC.setup_code}, headers=h)
+    assert r.status == 200
+    await client.post("/api/auth/logout", headers=h)
+    client.session.cookie_jar.clear()
+    return client, h
+
+
+async def test_ha_login_gives_user_role(ha_client):
+    client, h = ha_client
+    r = await client.post("/api/auth/login", json={"username": "maria", "password": "ha-secret-pw"}, headers=h)
+    assert r.status == 200
+    assert (await r.json())["user"]["role"] == "user"
+    assert (await client.get("/api/tvs")).status == 200
+    assert (await client.get("/api/users")).status == 403           # no admin rights
+
+
+async def test_ha_login_wrong_password_and_no_local_password(ha_client, monkeypatch):
+    client, h = ha_client
+    import addon
+    r = await client.post("/api/auth/login", json={"username": "maria", "password": "nope-nope-nope"}, headers=h)
+    assert r.status == 401
+    await client.post("/api/auth/login", json={"username": "maria", "password": "ha-secret-pw"}, headers=h)
+    client.session.cookie_jar.clear()
+    monkeypatch.setattr(addon, "ha_auth", lambda u, p: _never())                    # HA down: the stored account must not accept a password
+    r = await client.post("/api/auth/login", json={"username": "maria", "password": "ha-secret-pw"}, headers=h)
+    assert r.status == 401
+
+
+async def _never():
+    return False
+
+
+async def test_ha_login_cannot_take_over_a_local_account(ha_client, monkeypatch):
+    client, h = ha_client
+    import addon
+
+    async def yes(user, pw):
+        return True                                                  # HA would accept anything for "admin"
+    monkeypatch.setattr(addon, "ha_auth", yes)
+    r = await client.post("/api/auth/login", json={"username": "admin", "password": "whatever-123456"}, headers=h)
+    assert r.status == 401
+
+
+async def test_ha_login_off_by_default(client, monkeypatch):
+    import addon
+    monkeypatch.setattr(server, "INGRESS", True)
+    monkeypatch.setattr(addon, "options", lambda d: {})
+    called = []
+
+    async def spy(u, p):
+        called.append(u)
+        return True
+    monkeypatch.setattr(addon, "ha_auth", spy)
+    h = {"Origin": str(client.make_url("")).rstrip("/")}
+    r = await client.post("/api/auth/login", json={"username": "maria", "password": "ha-secret-pw"}, headers=h)
+    assert r.status in (401, 403, 409) and not called

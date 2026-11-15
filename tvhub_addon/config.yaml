@@ -30,11 +30,15 @@ map:
   - type: homeassistant_config
     read_only: false
     path: /config
+# Lets TVHub check a Home Assistant username/password (Supervisor /auth), only used when the option ha_login is on.
+auth_api: true
 # Port for direct access (outside Home Assistant). The add-on uses the host network, so change it here if 8080 is taken.
 # Ingress always uses 8099 and does not depend on this option.
 options:
   port: 8080
   install_integration: false
+  ha_login: false
 schema:
   port: port
   install_integration: bool
+  ha_login: bool

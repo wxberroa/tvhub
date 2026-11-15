@@ -5,3 +5,6 @@ configuration:
   install_integration:
     name: Install the TVHub integration
     description: Copies the integration into /config/custom_components/tvhub (restart Home Assistant afterwards). Never overwrites a copy installed with HACS or by hand. Off by default; the add-on only writes to Home Assistant's config folder when this is on.
+  ha_login:
+    name: Sign in with Home Assistant (direct port)
+    description: "Lets people sign in on the direct-access port with their Home Assistant username and password. They get the user role (control TVs, no settings). A name that is already a TVHub account is never matched. Off by default."

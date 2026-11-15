@@ -312,7 +312,7 @@ class Security:
 
     def public(self, u):
         return {"id": u["id"], "username": u["username"], "role": u["role"], "created": u.get("created"),
-                "disabled": bool(u.get("disabled"))}
+                "disabled": bool(u.get("disabled")), "ha": bool(u.get("ha"))}
 
     def admins(self):
         return [u for u in self.users.values() if u["role"] == "admin" and not u.get("disabled")]
@@ -320,7 +320,7 @@ class Security:
     async def verify_login(self, username, pw):
         """Constant-ish time: an unknown user is hashed against a dummy so timing does not reveal it."""
         u = self.find(username)
-        if u is None or u.get("disabled"):
+        if u is None or u.get("disabled") or u.get("ha"):      # "ha" accounts sign in through Home Assistant only
             await _verify(_DUMMY_HASH, pw)
             return None
         if not await _verify(u["pw"], pw):
@@ -333,6 +333,14 @@ class Security:
     async def add_user(self, username, pw, role):
         u = {"id": secrets.token_hex(8), "username": username, "role": role, "pw": await hash_password(pw),
              "created": int(now()), "pw_changed": 0}
+        self.users[u["id"]] = u
+        self.save_users()
+        return u
+
+    async def add_ha_user(self, username):
+        """An account for someone who signed in with their Home Assistant login: role user, no usable local password."""
+        u = {"id": secrets.token_hex(8), "username": username, "role": "user", "ha": True,
+             "pw": await hash_password(secrets.token_urlsafe(32)), "created": int(now()), "pw_changed": 0}
         self.users[u["id"]] = u
         self.save_users()
         return u

@@ -34,3 +34,7 @@ for the TVHub integration in Home Assistant and for other devices.
 - The login is skipped only for connections coming from the Home Assistant Supervisor (`172.30.32.2`) through Ingress.
   Everything else needs a TVHub account or API token.
 - Mutating requests from a browser must come from the same origin as Home Assistant.
+
+## Sign in with Home Assistant (direct port)
+
+Turn on **ha_login** to let people use their Home Assistant username and password on the direct-access port. They get the `user` role (control TVs, no settings). A name that is already a TVHub account is never matched, so a Home Assistant user called `admin` cannot become TVHub's admin. Off by default.
