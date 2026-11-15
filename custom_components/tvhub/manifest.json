@@ -1,6 +1,9 @@
 {
   "domain": "tvhub",
   "name": "TVHub",
+  "after_dependencies": [
+    "media_source"
+  ],
   "codeowners": [
     "@wxberroa"
   ],

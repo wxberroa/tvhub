@@ -141,3 +141,56 @@ async def test_users_list_flags_home_assistant_accounts(client):
     await server.SEC.add_ha_user("maria")
     users = {u["username"]: u for u in (await (await client.get("/api/users")).json())["users"]}
     assert users["maria"]["ha"] is True and users["admin"]["ha"] is False
+
+
+# ---- play a media URL on the TV (LG webOS) — what media_player.play_media / Music Assistant use
+
+class FakeTV(server.Driver):
+    type = "webos"
+    caps = {"play_media": True}
+
+    def __init__(self, cfg, fail=False):
+        super().__init__(cfg)
+        self.played, self.fail = [], fail
+
+    async def play_url(self, url):
+        if self.fail:
+            raise RuntimeError("La TV no está conectada")
+        self.played.append(url)
+
+
+@pytest.fixture
+async def play_client(client):
+    h = {"Origin": str(client.make_url("")).rstrip("/")}
+    r = await client.post("/api/auth/setup", json={"username": "admin", "password": "tv-hub-4-the-lounge",
+                                                   "code": server.SEC.setup_code}, headers=h)
+    assert r.status == 200
+    server.hub.tvs["lg"] = FakeTV({"id": "lg", "name": "LG", "host": "10.0.0.5"})
+    server.hub.tvs["off"] = FakeTV({"id": "off", "name": "Off", "host": "10.0.0.6"}, fail=True)
+    server.hub.tvs["nope"] = server.Driver({"id": "nope", "name": "Nope", "host": "10.0.0.7"})
+    me = await (await client.get("/api/auth/status")).json()
+    yield client, {**h, "X-CSRF-Token": me["csrf"]}
+    for k in ("lg", "off", "nope"):
+        server.hub.tvs.pop(k, None)
+
+
+async def test_play_url_ok(play_client):
+    client, h = play_client
+    r = await client.post("/api/tvs/lg/play", json={"url": "http://192.168.1.2:8123/local/song.mp3"}, headers=h)
+    assert r.status == 200
+    assert server.hub.tvs["lg"].played == ["http://192.168.1.2:8123/local/song.mp3"]
+
+
+@pytest.mark.parametrize("bad", ["", "ftp://x/y.mp3", "javascript:alert(1)", "http://a b/c", "file:///etc/passwd", "http://x/\ny"])
+async def test_play_url_rejects_bad_urls(play_client, bad):
+    client, h = play_client
+    r = await client.post("/api/tvs/lg/play", json={"url": bad}, headers=h)
+    assert r.status == 400 and not server.hub.tvs["lg"].played
+
+
+async def test_play_url_unsupported_and_offline(play_client):
+    client, h = play_client
+    assert (await client.post("/api/tvs/nope/play", json={"url": "http://x/y.mp3"}, headers=h)).status == 400
+    r = await client.post("/api/tvs/off/play", json={"url": "http://x/y.mp3"}, headers=h)
+    assert r.status == 400 and "conectada" in (await r.json())["error"]
+    assert (await client.post("/api/tvs/ghost/play", json={"url": "http://x/y.mp3"}, headers=h)).status == 404

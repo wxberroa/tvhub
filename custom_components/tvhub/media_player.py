@@ -3,11 +3,13 @@ from __future__ import annotations
 
 from typing import Any
 
+from homeassistant.components import media_source
 from homeassistant.components.media_player import (
     MediaPlayerDeviceClass,
     MediaPlayerEntity,
     MediaPlayerEntityFeature,
     MediaPlayerState,
+    async_process_play_media_url,
 )
 import voluptuous as vol
 
@@ -101,6 +103,8 @@ class TVHubPlayer(CoordinatorEntity[TVHubCoordinator], MediaPlayerEntity):
         feats = BASE
         if tv and tv["caps"].get("apps"):
             feats |= MediaPlayerEntityFeature.SELECT_SOURCE
+        if tv and tv["caps"].get("play_media"):
+            feats |= MediaPlayerEntityFeature.PLAY_MEDIA
         if vt and vt["caps"].get("volume_set"):
             feats |= MediaPlayerEntityFeature.VOLUME_SET
         return feats
@@ -175,6 +179,12 @@ class TVHubPlayer(CoordinatorEntity[TVHubCoordinator], MediaPlayerEntity):
     async def async_send_key(self, key: str) -> None:
         """tvhub.send_key — any remote key (DPAD_UP, BACK, HOME, MENU, MEDIA_PLAY_PAUSE…); used by the remote card."""
         await self._do(self.coordinator.client.key(self._tv_id, key))
+
+    async def async_play_media(self, media_type: str, media_id: str, **kwargs: Any) -> None:
+        """Open a media URL on the TV (LG webOS). Media-source ids are resolved to a URL the TV can reach."""
+        if media_source.is_media_source_id(media_id):
+            media_id = (await media_source.async_resolve_media(self.hass, media_id, self.entity_id)).url
+        await self._do(self.coordinator.client.play(self._tv_id, async_process_play_media_url(self.hass, media_id)))
 
     async def async_select_source(self, source: str) -> None:
         for a in self.coordinator.apps.get(self._tv_id, []):
