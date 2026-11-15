@@ -9,6 +9,9 @@ in `custom_components/tvhub/manifest.json` and `tvhub_addon/config.yaml`, and pu
 ## [Unreleased]
 
 ### Changed
+- The "TVHub detected" card in Home Assistant now says what it is adding: the add-on address and the list of TVs that will become media players.
+
+### Changed
 - Dependencies: minimum `aiohttp` 3.14.5, `paho-mqtt` 2.2.0 and `argon2-cffi` 25.1; CI actions (`checkout`, `docker/*`) updated.
 
 ### Added

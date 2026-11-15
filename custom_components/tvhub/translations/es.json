@@ -13,7 +13,7 @@
       },
       "hassio_confirm": {
         "title": "TVHub detectado",
-        "description": "El add-on de TVHub ({addon}) está en marcha. ¿Quieres conectarlo con Home Assistant? No hace falta escribir ni IP ni token."
+        "description": "Se encontró el add-on **TVHub** en `{address}`.\n\nAl confirmar se conectará con Home Assistant (sin escribir IP ni token) y se añadirán sus televisores como reproductores multimedia.\n\nTVs detectados ({count}): {tvs}"
       }
     },
     "error": {
