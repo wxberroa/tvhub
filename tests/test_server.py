@@ -131,3 +131,13 @@ async def test_status_flags_for_addon_direct_port(client, monkeypatch):
     monkeypatch.setattr(addon, "options", lambda d: {"ha_login": True})
     st = await (await client.get("/api/auth/status")).json()
     assert st["setup_required"] is False and st["ha_login"] is True      # the login form is shown instead of the setup one
+
+
+async def test_users_list_flags_home_assistant_accounts(client):
+    h = {"Origin": str(client.make_url("")).rstrip("/")}
+    r = await client.post("/api/auth/setup", json={"username": "admin", "password": "tv-hub-4-the-lounge",
+                                                   "code": server.SEC.setup_code}, headers=h)
+    assert r.status == 200
+    await server.SEC.add_ha_user("maria")
+    users = {u["username"]: u for u in (await (await client.get("/api/users")).json())["users"]}
+    assert users["maria"]["ha"] is True and users["admin"]["ha"] is False

@@ -8,6 +8,9 @@ in `custom_components/tvhub/manifest.json` and `tvhub_addon/config.yaml`, and pu
 
 ## [Unreleased]
 
+### Changed
+- Users list: accounts that sign in through Home Assistant (`ha_login`) are tagged "Home Assistant" and have no "reset password" button, since they have no TVHub password.
+
 ## [0.9.0] - 2026-11-15
 
 ### Added
