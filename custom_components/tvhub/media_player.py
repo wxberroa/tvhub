@@ -15,7 +15,7 @@ import voluptuous as vol
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import config_validation as cv, entity_platform
+from homeassistant.helpers import config_validation as cv, entity_platform, entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
@@ -67,7 +67,13 @@ class TVHubPlayer(CoordinatorEntity[TVHubCoordinator], MediaPlayerEntity):
 
     # ---- what Music Assistant is playing (for the TV's player page)
     def _mass_state(self):
-        """Music Assistant's own entity for this TV (it knows the track; the stream URL does not say). Matched by name."""
+        """Music Assistant's own entity for this TV (it knows the track; the stream URL does not say).
+
+        Music Assistant's integration uses the player id as the entity's unique_id, and for Home Assistant players that id is
+        this entity's entity_id, so the registry gives an exact match; matching by name is only the fallback."""
+        for ent in er.async_get(self.hass).entities.values():
+            if ent.platform == "music_assistant" and ent.domain == "media_player" and ent.unique_id == self.entity_id:
+                return self.hass.states.get(ent.entity_id)
         me = self.hass.states.get(self.entity_id)
         if me is None:
             return None
