@@ -159,6 +159,16 @@ target: { entity_id: media_player.lg_sala }
 data: { key: HOME }               # DPAD_UP, DPAD_CENTER, BACK, MENU, MEDIA_PLAY_PAUSE, VOLUME_UP…
 ```
 
+### Play a URL on an LG TV (experimental)
+
+LG webOS TVs accept `media_player.play_media` with a URL (or a media-source id), so you can send them an audio or video file from an automation, and in principle use them as a player in Music Assistant (provider *Home Assistant Media Players*). TVHub opens the URL in the TV's media viewer and falls back to its browser; what plays, and how well, depends on the TV model, so treat it as **experimental**. It does not report the track or its progress back to Home Assistant. Other brands do not support it yet.
+
+```yaml
+action: media_player.play_media
+target: { entity_id: media_player.lg_sala }
+data: { media_content_type: music, media_content_id: "http://homeassistant.local:8123/local/song.mp3" }
+```
+
 ## Moved to `wxberroa`
 
 The GitHub account was renamed from `xavilitoh` to `wxberroa`. GitHub redirects the repository and git URLs, but **not** container images: use `ghcr.io/wxberroa/tvhub` instead of `ghcr.io/xavilitoh/tvhub` in `docker run`, `docker-compose.yml` and Portainer. The Home Assistant add-on and HACS pick the new address up by themselves after updating; if you added the repository by hand, the old URL keeps redirecting for now, but replace it with `https://github.com/wxberroa/tvhub`. The website is now at `https://wxberroa.github.io/tvhub/`. Please don't rely on the old name anymore: it may be taken by someone else.

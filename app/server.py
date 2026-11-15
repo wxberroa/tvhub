@@ -201,6 +201,10 @@ class Driver:
     async def set_volume(self, level):
         raise NotImplementedError
 
+    # play a media URL (HTTP/HTTPS) on the TV: drivers with caps["play_media"] override this
+    async def play_url(self, url):
+        raise NotImplementedError
+
     # video inputs (HDMI…): drivers that can switch them override these
     def has_inputs(self):
         return False
@@ -769,7 +773,8 @@ def wake_on_lan(mac):
 
 class WebosDriver(Driver):
     type = "webos"
-    caps = {"video": False, "apps": True, "text": True, "snapshot": False, "pair": True, "volume_set": True}
+    caps = {"video": False, "apps": True, "text": True, "snapshot": False, "pair": True, "volume_set": True,
+            "play_media": True}
 
     def __init__(self, cfg):
         super().__init__(cfg)
@@ -980,6 +985,21 @@ class WebosDriver(Driver):
         a = ((c.tv_state.apps or {}).get(pkg) or {}) if c else {}
         url = a.get("largeIcon") or a.get("icon")
         return await icons.fetch_remote(url, self.host) if url else None
+
+    async def play_url(self, url):
+        """Open a media URL on the TV: the media viewer first (plays audio / video / images), the browser as a fallback."""
+        c = self.client
+        if c is None or self.state != "device":
+            raise RuntimeError("La TV no está conectada")
+        last = None
+        for uri in ("media.viewer/open", "system.launcher/open"):
+            try:
+                await c.request(uri, {"target": url})
+                return
+            except Exception as e:                                  # noqa: BLE001 - model-dependent: try the next way
+                last = e
+                log(f"webos play_url via {uri}: {e}")
+        raise RuntimeError(f"La TV no pudo abrir la dirección ({last})")
 
     async def launch(self, pkg):
         c = self.client
@@ -2283,6 +2303,29 @@ async def api_launch(request):
     return web.json_response({"ok": True})
 
 
+URL_RE = re.compile(r"^https?://[^\s\x00-\x1f]{1,2040}$", re.I)
+
+
+async def api_play(request):
+    """Open a media URL on the TV (what Home Assistant's media_player.play_media / Music Assistant send)."""
+    tv = get_tv(request)
+    try:
+        d = await request.json()
+    except ValueError:
+        d = {}
+    url = str(d.get("url", "")).strip() if isinstance(d, dict) else ""
+    if not URL_RE.fullmatch(url):
+        return jerr("Indica una dirección http:// o https:// válida")
+    if not tv.caps.get("play_media"):
+        return jerr("Esta TV no permite reproducir una dirección")
+    try:
+        await tv.play_url(url)
+    except (RuntimeError, ValueError) as e:
+        return jerr(str(e))
+    SEC.audit("play_url", request, user=request["pr"]["name"], target=tv.cfg.get("name"))
+    return web.json_response({"ok": True}, headers=JSON_NOSTORE)
+
+
 def _body_keys(d):
     keys = d.get("keys") or [d.get("key")]
     return [k for k in keys[:10] if isinstance(k, str) and KEY_RE.match(k)]
@@ -2572,6 +2615,7 @@ def make_app():
         web.post("/api/tvs/{id}/pair", api_pair),
         web.get("/api/tvs/{id}/apps", api_apps),
         web.post("/api/tvs/{id}/launch", api_launch),
+        web.post("/api/tvs/{id}/play", api_play),
         web.get("/api/tvs/{id}/snapshot", api_snapshot),
         web.post("/api/tvs/{id}/key", api_key),
         web.post("/api/tvs/{id}/text", api_text),

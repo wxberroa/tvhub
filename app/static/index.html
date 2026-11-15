@@ -2072,13 +2072,12 @@ async function loadUsers() {
   const ul = $("userList"); ul.textContent = "";
   for (const u of j.users) {
     const li = document.createElement("li"); if (u.disabled) li.className = "off";
-    const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = u.username + (u.username === me.username ? " · " + T("tú") : "") + (u.disabled ? " · " + T("desactivado") : "");
+    const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = u.username + (u.username === me.username ? " · " + T("tú") : "") + (u.ha ? " · Home Assistant" : "") + (u.disabled ? " · " + T("desactivado") : "");
     const sel = document.createElement("select");
     [["user", "Usuario"], ["admin", "Administrador"]].forEach(([v, n]) => { const o = document.createElement("option"); o.value = v; o.textContent = T(n); sel.append(o); });
     sel.value = u.role; sel.onchange = async () => { if (await api("PATCH", `/api/users/${u.id}`, { role: sel.value })) toast(T("Rol actualizado")); loadUsers(); };
     const mk = (label, fn, cls) => { const b = document.createElement("button"); b.type = "button"; b.className = "btn" + (cls ? " " + cls : ""); b.textContent = T(label); b.onclick = fn; return b; };
-    li.append(nm, sel,
-      mk("Restablecer clave", () => openPw(u)),
+    li.append(nm, sel, ...(u.ha ? [] : [mk("Restablecer clave", () => openPw(u))]),      // Home Assistant accounts have no TVHub password
       mk(u.disabled ? "Activar" : "Desactivar", async () => { if (await api("PATCH", `/api/users/${u.id}`, { disabled: !u.disabled })) loadUsers(); }),
       mk("Eliminar", async () => { if (confirm(T("¿Eliminar al usuario «{0}»?", u.username)) && await api("DELETE", `/api/users/${u.id}`)) loadUsers(); }, "danger"));
     ul.append(li);

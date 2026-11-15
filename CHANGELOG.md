@@ -8,6 +8,14 @@ in `custom_components/tvhub/manifest.json` and `tvhub_addon/config.yaml`, and pu
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-15
+
+### Added
+- LG webOS: play a media URL on the TV (`POST /api/tvs/{id}/play`). The Home Assistant integration now supports `media_player.play_media` for LG TVs (URLs and media-source ids). It opens the TV's media viewer, with the browser as a fallback; what plays depends on the TV model. Experimental.
+
+### Changed
+- Users list: accounts that sign in through Home Assistant (`ha_login`) are tagged "Home Assistant" and have no "reset password" button, since they have no TVHub password.
+
 ## [0.9.0] - 2026-11-15
 
 ### Added

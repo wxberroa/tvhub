@@ -1,6 +1,9 @@
 {
   "domain": "tvhub",
   "name": "TVHub",
+  "after_dependencies": [
+    "media_source"
+  ],
   "codeowners": [
     "@wxberroa"
   ],
@@ -14,5 +17,5 @@
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/wxberroa/tvhub/issues",
   "requirements": [],
-  "version": "0.9.0"
+  "version": "0.9.1"
 }
