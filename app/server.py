@@ -783,6 +783,7 @@ class WebosDriver(Driver):
         self.pair_msg = ""
         self.pairing = False
         self.playing = False
+        self.no_viewer = False
 
     # -- persisted pairing key (one per TV id)
     def _keys_path(self):
@@ -993,11 +994,15 @@ class WebosDriver(Driver):
             raise RuntimeError("La TV no está conectada")
         last = None
         for uri in ("media.viewer/open", "system.launcher/open"):
+            if uri == "media.viewer/open" and self.no_viewer:
+                continue                                            # this model has no photo/video viewer: use the browser
             try:
                 await c.request(uri, {"target": url})
                 return
             except Exception as e:                                  # noqa: BLE001 - model-dependent: try the next way
                 last = e
+                if uri == "media.viewer/open" and "Unsupported Application Type" in str(e):
+                    self.no_viewer = True                           # newer webOS: remember it, skip the failing call next time
                 log(f"webos play_url via {uri}: {e}")
         raise RuntimeError(f"La TV no pudo abrir la dirección ({last})")
 
