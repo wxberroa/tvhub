@@ -120,3 +120,14 @@ async def test_ha_login_off_by_default(client, monkeypatch):
     h = {"Origin": str(client.make_url("")).rstrip("/")}
     r = await client.post("/api/auth/login", json={"username": "maria", "password": "ha-secret-pw"}, headers=h)
     assert r.status in (401, 403, 409) and not called
+
+
+async def test_status_flags_for_addon_direct_port(client, monkeypatch):
+    import addon
+    monkeypatch.setattr(server, "INGRESS", True)
+    monkeypatch.setattr(addon, "options", lambda d: {})
+    st = await (await client.get("/api/auth/status")).json()
+    assert st["setup_required"] is True and st["addon"] is True and st["ha_login"] is False
+    monkeypatch.setattr(addon, "options", lambda d: {"ha_login": True})
+    st = await (await client.get("/api/auth/status")).json()
+    assert st["setup_required"] is False and st["ha_login"] is True      # the login form is shown instead of the setup one
