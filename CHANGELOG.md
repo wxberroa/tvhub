@@ -8,6 +8,8 @@ in `custom_components/tvhub/manifest.json` and `tvhub_addon/config.yaml`, and pu
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-15
+
 ### Added
 - Add-on option `ha_login` (off by default): sign in on the direct port with a Home Assistant username and password, checked by the Supervisor. Role `user` only; never matches an existing TVHub account.
 
