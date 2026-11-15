@@ -8,6 +8,16 @@ in `custom_components/tvhub/manifest.json` and `tvhub_addon/config.yaml`, and pu
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-15
+
+### Added
+- Add-on option `ha_login` (off by default): sign in on the direct port with a Home Assistant username and password, checked by the Supervisor. Role `user` only; never matches an existing TVHub account.
+
+### Changed
+- Direct port of the add-on: the first-run screen now explains that users can be created from the sidebar panel (or with the code in the add-on's Log tab) instead of mentioning `docker compose`; with `ha_login` on it shows the sign-in form, because Home Assistant accounts work before any local admin exists.
+- Home Assistant brand: `logo.png` now has dark lettering for light themes, and `dark_logo.png` keeps the white one for dark themes.
+- CI: `docker/setup-qemu-action` v4.
+
 ## [0.8.5] - 2026-11-14
 
 ### Added

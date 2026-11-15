@@ -1936,12 +1936,14 @@ def me_payload(pr, extra=None):
 async def api_auth_status(request):
     if via_ingress(request):
         return web.json_response(me_payload(authenticate(request), {"setup_required": False, "ingress": True}), headers=JSON_NOSTORE)
-    if not SEC.has_users():
-        return web.json_response({"setup_required": True, "authenticated": False}, headers=JSON_NOSTORE)
+    ha_login = bool(INGRESS and addon.options(DATA).get("ha_login"))
+    info = {"addon": INGRESS, "ha_login": ha_login}
+    if not SEC.has_users() and not ha_login:       # with ha_login on, Home Assistant accounts can sign in before any local admin exists
+        return web.json_response({"setup_required": True, "authenticated": False, **info}, headers=JSON_NOSTORE)
     pr = authenticate(request)
     if pr and pr["kind"] == "session":
-        return web.json_response(me_payload(pr, {"setup_required": False}), headers=JSON_NOSTORE)
-    return web.json_response({"setup_required": False, "authenticated": False}, headers=JSON_NOSTORE)
+        return web.json_response(me_payload(pr, {"setup_required": False, **info}), headers=JSON_NOSTORE)
+    return web.json_response({"setup_required": False, "authenticated": False, **info}, headers=JSON_NOSTORE)
 
 
 async def _start_session(request, u, remember=False):
@@ -1991,12 +1993,18 @@ async def api_login(request):
         return web.json_response({"error": f"Demasiados intentos. Espera {wait} s", "retry_after": wait}, status=429,
                                  headers={**JSON_NOSTORE, "Retry-After": str(wait)})
     u = await SEC.verify_login(username, pw)
+    if u is None and INGRESS and addon.options(DATA).get("ha_login"):
+        # Optional: sign in with a Home Assistant account. Never for a name that is a TVHub account of its own
+        # (otherwise a Home Assistant user called "admin" would become TVHub's admin), and always role "user".
+        known = SEC.find(username)
+        if (known is None or known.get("ha")) and not (known or {}).get("disabled") and await addon.ha_auth(username, pw):
+            u = known or await SEC.add_ha_user(username)
     if u is None:
         SEC.limiter.fail(ip, username)
         SEC.audit("login_failed", request, user=username)
         return jerr("Usuario o contraseña incorrectos", 401)
     SEC.limiter.success(ip, username)
-    SEC.audit("login", request, user=username)
+    SEC.audit("login", request, user=username, via="home-assistant" if u.get("ha") else "tvhub")
     return await _start_session(request, u, bool(d.get("remember")))
 
 

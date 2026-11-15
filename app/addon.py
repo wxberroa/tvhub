@@ -34,6 +34,16 @@ def options(data_dir):
         return {}
 
 
+async def ha_auth(username, password):
+    """True when Home Assistant accepts this login (Supervisor /auth; needs auth_api: true in the add-on config)."""
+    try:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as cs:
+            async with cs.post(_sup() + "/auth", headers=_hdr(), json={"username": username, "password": password}) as r:
+                return r.status == 200
+    except Exception:                                    # noqa: BLE001 - Supervisor unreachable: nobody gets in this way
+        return False
+
+
 def ha_token(sec, data_dir):
     """A TVHub API token for the integration. Kept in /data (0600) so restarts reuse it instead of piling up tokens."""
     path = Path(data_dir) / "ha-integration-token"

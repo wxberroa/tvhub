@@ -22,8 +22,12 @@ watchdog: http://[HOST]:[PORT:8098]/api/auth/status
 # Lets TVHub ask the Supervisor for the Mosquitto add-on's login (optional: it works without Mosquitto too).
 services:
   - mqtt:want
+# Lets TVHub check a Home Assistant username/password (Supervisor /auth), only used when the option ha_login is on.
+auth_api: true
 # Different default from the stable add-on so both can run at once.
 options:
   port: 8081
+  ha_login: false
 schema:
   port: port
+  ha_login: bool

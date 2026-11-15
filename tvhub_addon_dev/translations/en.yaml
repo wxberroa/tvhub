@@ -2,3 +2,6 @@ configuration:
   port:
     name: Direct access port
     description: Port where this test build answers outside Home Assistant. 8081 by default so it can run next to the stable add-on. Restart the add-on after changing it.
+  ha_login:
+    name: Sign in with Home Assistant (direct port)
+    description: "Lets people sign in on the direct-access port with their Home Assistant username and password. They get the user role (control TVs, no settings). A name that is already a TVHub account is never matched. Off by default."
