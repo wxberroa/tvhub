@@ -8,6 +8,9 @@ in `custom_components/tvhub/manifest.json` and `tvhub_addon/config.yaml`, and pu
 
 ## [Unreleased]
 
+### Changed
+- Dependencies: minimum `aiohttp` 3.14.5, `paho-mqtt` 2.2.0 and `argon2-cffi` 25.1; CI actions (`checkout`, `docker/*`) updated.
+
 ### Added
 - Automated tests (pytest) for password rules, security headers, PWA routes and the first-run setup/login flow, run in CI.
 
