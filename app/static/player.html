@@ -39,10 +39,12 @@
 (function () {
   var CFG = JSON.parse(document.getElementById("cfg").textContent);
   var a = document.getElementById("a"), $ = function (i) { return document.getElementById(i); };
-  var ws = null, wantPlay = true;
+  var ws = null, wantPlay = true, M = {}, base = null;
   function fmt(s) { if (!isFinite(s) || s < 0) return ""; s = Math.floor(s); var m = Math.floor(s / 60), r = s % 60; return m + ":" + (r < 10 ? "0" : "") + r; }
-  function meta(m) {
-    m = m || {};
+  function meta(m, merge) {
+    M = merge ? Object.assign({}, M, m) : (m || {});
+    if (m && m.position != null) base = { pos: m.position, at: Date.now() };
+    m = M;
     $("title").textContent = m.title || "Reproduciendo";
     $("sub").textContent = [m.artist, m.album].filter(Boolean).join(" · ");
     var c = $("cover"), bg = $("bg");
@@ -52,9 +54,16 @@
   }
   function report() { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ state: a.paused ? "paused" : "playing", pos: a.currentTime || 0, dur: isFinite(a.duration) ? a.duration : 0 })); }
   function show() {
-    $("cur").textContent = fmt(a.currentTime);
-    $("dur").textContent = isFinite(a.duration) ? fmt(a.duration) : "";
-    $("fill").style.width = (isFinite(a.duration) && a.duration > 0 ? Math.min(100, 100 * a.currentTime / a.duration) : 0) + "%";
+    var cur = a.currentTime, dur = a.duration;
+    if (M.duration > 0) {                      // Music Assistant streams one endless flow: use the track's own time
+      dur = M.duration;
+      cur = base ? base.pos + (a.paused ? 0 : (Date.now() - base.at) / 1000) : 0;
+      if (a.paused && base) { base.pos = cur; base.at = Date.now(); }
+      cur = Math.max(0, Math.min(cur, dur));
+    }
+    $("cur").textContent = fmt(cur);
+    $("dur").textContent = isFinite(dur) ? fmt(dur) : "";
+    $("fill").style.width = (isFinite(dur) && dur > 0 ? Math.min(100, 100 * cur / dur) : 0) + "%";
     $("state").textContent = a.paused ? "Pausado" : "Reproduciendo";
   }
   function play() {
@@ -62,7 +71,7 @@
     var p = a.play();
     if (p && p.catch) p.catch(function () { $("go").style.display = "inline-block"; $("go").focus(); });
   }
-  function load(url, m) { meta(m); a.src = url; a.load(); play(); }
+  function load(url, m) { base = null; meta(m); a.src = url; a.load(); play(); }
   $("go").onclick = function () { $("go").style.display = "none"; play(); };
   a.addEventListener("playing", function () { $("go").style.display = "none"; show(); report(); });
   a.addEventListener("pause", function () { show(); report(); });
@@ -74,6 +83,7 @@
     ws.onmessage = function (e) {
       var m; try { m = JSON.parse(e.data); } catch (_) { return; }
       if (m.cmd === "load") load(m.url, m.meta);
+      else if (m.cmd === "meta") meta(m.meta, true);
       else if (m.cmd === "play") play();
       else if (m.cmd === "pause") a.pause();
       else if (m.cmd === "toggle") { if (a.paused) play(); else a.pause(); }

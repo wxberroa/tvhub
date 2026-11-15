@@ -18,7 +18,10 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv, entity_platform
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.network import NoURLAvailableError, get_url
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from . import TVHubConfigEntry, TVHubCoordinator
 from .api import TVHubError
@@ -61,6 +64,74 @@ class TVHubPlayer(CoordinatorEntity[TVHubCoordinator], MediaPlayerEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, tv_id), ("mqtt", f"tvhub_{tv_id}")},
             name=tv.get("name"), manufacturer=MAKER.get(tv.get("type", ""), "TV"), model=tv.get("model") or None)
+
+    # ---- what Music Assistant is playing (for the TV's player page)
+    def _mass_state(self):
+        """Music Assistant's own entity for this TV (it knows the track; the stream URL does not say). Matched by name."""
+        me = self.hass.states.get(self.entity_id)
+        if me is None:
+            return None
+        for st in self.hass.states.async_all("media_player"):
+            if st.entity_id != self.entity_id and "mass_player_type" in st.attributes and (
+                    st.name == me.name or st.entity_id.startswith(self.entity_id)):
+                return st
+        return None
+
+    def _now_playing(self, st) -> dict[str, Any]:
+        a = st.attributes
+        out: dict[str, Any] = {"title": a.get("media_title"), "artist": a.get("media_artist"), "album": a.get("media_album_name")}
+        pic = a.get("entity_picture")
+        if pic:
+            if str(pic).startswith("/"):
+                try:
+                    pic = get_url(self.hass, prefer_external=False) + str(pic)
+                except NoURLAvailableError:
+                    pic = None
+            out["image"] = pic
+        dur, pos = a.get("media_duration"), a.get("media_position")
+        if dur:
+            out["duration"] = dur
+        if pos is not None:
+            upd = a.get("media_position_updated_at")
+            if isinstance(upd, str):
+                upd = dt_util.parse_datetime(upd)
+            if st.state == "playing" and upd:
+                pos = float(pos) + max(0.0, (dt_util.utcnow() - dt_util.as_utc(upd)).total_seconds())
+            out["position"] = pos
+        return {k: v for k, v in out.items() if v not in (None, "")}
+
+    async def _push_now_playing(self, st=None) -> None:
+        st = st or self._mass_state()
+        if st is None:
+            return
+        data = self._now_playing(st)
+        if data:
+            try:
+                await self.coordinator.client.nowplaying(self._tv_id, data)
+            except TVHubError:
+                pass
+
+    def _watch_mass(self) -> None:
+        self._unwatch_mass()
+        st = self._mass_state()
+        if st is None:
+            return
+
+        async def changed(event) -> None:
+            new = event.data.get("new_state")
+            if new is not None:
+                await self._push_now_playing(new)
+        self._np_unsub = async_track_state_change_event(self.hass, [st.entity_id], changed)
+        self.hass.async_create_task(self._push_now_playing(st))
+
+    def _unwatch_mass(self) -> None:
+        unsub, self._np_unsub = getattr(self, "_np_unsub", None), None
+        if unsub:
+            unsub()
+
+    async def async_will_remove_from_hass(self) -> None:
+        self._unwatch_mass()
+        await super().async_will_remove_from_hass()
 
     # ---- helpers
     @property
@@ -168,6 +239,7 @@ class TVHubPlayer(CoordinatorEntity[TVHubCoordinator], MediaPlayerEntity):
         await self._do(self.coordinator.client.key(self._tv_id, "MEDIA_PAUSE"))
 
     async def async_media_stop(self) -> None:
+        self._unwatch_mass()
         await self._do(self.coordinator.client.key(self._tv_id, "MEDIA_STOP"))
 
     async def async_media_previous_track(self) -> None:
@@ -187,6 +259,7 @@ class TVHubPlayer(CoordinatorEntity[TVHubCoordinator], MediaPlayerEntity):
         extra = kwargs.get("extra")
         await self._do(self.coordinator.client.play(self._tv_id, async_process_play_media_url(self.hass, media_id),
                                                     str(media_type), extra if isinstance(extra, dict) else None))
+        self._watch_mass()
 
     async def async_select_source(self, source: str) -> None:
         for a in self.coordinator.apps.get(self._tv_id, []):

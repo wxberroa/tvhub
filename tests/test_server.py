@@ -153,7 +153,7 @@ class FakeTV(server.Driver):
         super().__init__(cfg)
         self.played, self.fail = [], fail
 
-    async def play_url(self, url):
+    async def play_url(self, url, page=False):
         if self.fail:
             raise RuntimeError("La TV no está conectada")
         self.played.append(url)
@@ -210,6 +210,22 @@ async def test_second_track_reuses_open_page_and_keys_reach_it(play_client):
     await client.post("/api/tvs/lg/key", json={"key": "MEDIA_PAUSE"}, headers=h)
     assert (await ws.receive_json())["cmd"] == "pause"
     await ws.close()
+
+
+async def test_nowplaying_updates_open_page(play_client):
+    client, h = play_client
+    await client.post("/api/tvs/lg/play", json={"url": "http://ma:8097/flow/s/media_player.lg/media_player.lg.flac"}, headers=h)
+    token = server.hub.tvs["lg"].played[0].rsplit("/", 1)[1]
+    assert "title" not in server.PLAYERS.get(token)["meta"]                      # Music Assistant's player id is not a title
+    ws = await client.ws_connect(f"/ws/player/{token}")
+    r = await client.post("/api/tvs/lg/nowplaying", json={"title": "Shivers", "artist": "Ed Sheeran", "duration": 207, "position": 12.5,
+                                                          "image": "http://ha:8123/api/media_player_proxy/x?token=t"}, headers=h)
+    assert (await r.json())["live"] is True
+    msg = await ws.receive_json()
+    assert msg["cmd"] == "meta" and msg["meta"]["title"] == "Shivers" and msg["meta"]["duration"] == 207 and msg["meta"]["position"] == 12.5
+    await ws.close()
+    r = await client.post("/api/tvs/off/nowplaying", json={"title": "x"}, headers=h)
+    assert (await r.json())["live"] is False
 
 
 def test_clean_meta_variants():

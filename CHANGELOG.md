@@ -9,7 +9,7 @@ in `custom_components/tvhub/manifest.json` and `tvhub_addon/config.yaml`, and pu
 ## [Unreleased]
 
 ### Added
-- LG webOS player page: `play_media` now opens TVHub's own player in the TV's browser (title, artist, album, cover, progress) instead of the browser's bare audio player. Home Assistant's pause / play / stop reach the page, and the next track is pushed to the open page without reopening the browser. Title, artist and cover come from what Home Assistant sends (`extra`); the add-on log records exactly what arrives (`play_url ... extra=...`) so more can be mapped.
+- LG webOS player page: `play_media` now opens TVHub's own player in the TV's browser (title, artist, album, cover, progress) instead of the browser's bare audio player. Home Assistant's pause / play / stop reach the page, and the next track is pushed to the open page without reopening the browser. Title, artist and cover come from what Home Assistant sends (`extra`); Music Assistant sends none, so the integration reads them from Music Assistant's own entity for that TV (matched by name) and keeps the page updated, including the track's duration and position. The add-on log records what arrives (`play_url ... extra=...`). On the TV the player page opens in the browser only (the media viewer is not tried for it).
 
 ## [0.9.1] - 2026-11-15
 

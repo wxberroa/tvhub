@@ -44,9 +44,18 @@ def clean_meta(*sources, url=""):
         if _http(flat.get(n, "")):
             out["image"] = flat[n]
             break
-    if "title" not in out:                                          # last resort: the file name
+    for field in ("duration", "position"):                          # seconds, e.g. Music Assistant's media_duration / media_position
+        for n in (field, "media_" + field):
+            try:
+                v = float(flat[n])
+            except (KeyError, ValueError):
+                continue
+            if 0 <= v <= 3 * 86400:
+                out[field] = round(v, 1)
+                break
+    if "title" not in out:                                          # last resort: the file name (not Music Assistant's player id)
         name = unquote(urlsplit(url).path.rsplit("/", 1)[-1]).rsplit(".", 1)[0]
-        if name:
+        if name and not name.startswith("media_player."):
             out["title"] = name[:200]
     return out
 

@@ -203,7 +203,7 @@ class Driver:
         raise NotImplementedError
 
     # play a media URL (HTTP/HTTPS) on the TV: drivers with caps["play_media"] override this
-    async def play_url(self, url):
+    async def play_url(self, url, page=False):
         raise NotImplementedError
 
     # video inputs (HDMI…): drivers that can switch them override these
@@ -988,13 +988,14 @@ class WebosDriver(Driver):
         url = a.get("largeIcon") or a.get("icon")
         return await icons.fetch_remote(url, self.host) if url else None
 
-    async def play_url(self, url):
-        """Open a media URL on the TV: the media viewer first (plays audio / video / images), the browser as a fallback."""
+    async def play_url(self, url, page=False):
+        """Open a URL on the TV. A media file goes to the media viewer first (browser as a fallback); `page=True` is a web
+        page (TVHub's player), which only the browser can show."""
         c = self.client
         if c is None or self.state != "device":
             raise RuntimeError("La TV no está conectada")
         last = None
-        for uri in ("media.viewer/open", "system.launcher/open"):
+        for uri in ("system.launcher/open",) if page else ("media.viewer/open", "system.launcher/open"):
             if uri == "media.viewer/open" and self.no_viewer:
                 continue                                            # this model has no photo/video viewer: use the browser
             try:
@@ -2352,12 +2353,27 @@ async def api_play(request):
         token = PLAYERS.create(tv.id, url, meta)
         port = request.url.port or direct_port()
         try:
-            await tv.play_url(f"http://{ip}:{port}/player/{token}")
+            await tv.play_url(f"http://{ip}:{port}/player/{token}", page=True)
         except (RuntimeError, ValueError) as e:
             PLAYERS.drop(token)
             return jerr(str(e))
     SEC.audit("play_url", request, user=request["pr"]["name"], target=tv.cfg.get("name"))
     return web.json_response({"ok": True}, headers=JSON_NOSTORE)
+
+
+async def api_nowplaying(request):
+    """Home Assistant tells TVHub what is playing (from Music Assistant's own entity) so the TV's player page can show it."""
+    tv = get_tv(request)
+    try:
+        d = await request.json()
+    except ValueError:
+        d = {}
+    meta = player.clean_meta(d if isinstance(d, dict) else {})
+    live = PLAYERS.live(tv.id)
+    if live and meta:
+        live["meta"] = {**live["meta"], **meta}
+        await PLAYERS.send(live, {"cmd": "meta", "meta": meta})
+    return web.json_response({"ok": True, "live": bool(live)}, headers=JSON_NOSTORE)
 
 
 async def player_page(request):
@@ -2709,6 +2725,7 @@ def make_app():
         web.post("/api/tvs/{id}/input", api_set_input),
         web.post("/api/tvs/{id}/show", api_show),
         web.get("/api/tvs/{id}/appicon/{pkg}", api_appicon),
+        web.post("/api/tvs/{id}/nowplaying", api_nowplaying),
         web.get("/player/{token}", player_page),
         web.get("/ws/player/{token}", ws_player),
         web.get("/ws/video", ws_video),
