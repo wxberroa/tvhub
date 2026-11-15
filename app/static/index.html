@@ -1761,8 +1761,7 @@ $("tvForm").addEventListener("submit", async (e) => {
     const j = await r.json();
     if (!r.ok) { $("formErr").textContent = Tm(j.error || "No se pudo guardar"); return; }
     dlg.close();
-    if (!editing) { await new Promise((ok) => setTimeout(ok, 150)); selectTV(j.id); offerPairing(j.id); }
-    toast(T(editing ? "Guardado" : "TV añadida"));
+    if (editing) toast(T("Guardado")); else await afterTVAdded(j, true);
   } catch (_) { $("formErr").textContent = T("No se pudo contactar con el servidor"); }
 });
 $("btnDelete").onclick = async () => {
@@ -1771,12 +1770,19 @@ $("btnDelete").onclick = async () => {
   const wasCur = editing.id === cur; dlg.close();
   if (wasCur) { cur = ""; videoStarted = false; stopVideo(); }
 };
+// Everything that follows adding a TV, whichever screen added it (the form or the network search).
+async function afterTVAdded(tv, select) {
+  toast(T("TV añadida"));
+  if (select) { await new Promise((ok) => setTimeout(ok, 150)); selectTV(tv.id); }
+  offerPairing(tv.id);
+}
 // A TV that was just added and still needs pairing: open the pairing step right away (no hunting through Settings).
 // Only the brands that really need it get here: the TV reports "needs_pairing" itself; Android TVs and the rest never do.
 async function offerPairing(id) {
   for (let i = 0; i < 16; i++) {
     const t = tvs.find((x) => x.id === id);
     if (t && t.state === "needs_pairing") {
+      document.querySelectorAll("dialog[open]").forEach((d) => d.close());     // e.g. the network search that added it
       openDialog(t);
       toast(T("Falta emparejar: sigue los pasos de esta ventana"));
       if (t.type === "webos" || t.type === "samsung" || t.type === "vidaa") pair();   // these need no typing first: the TV asks or shows a PIN
@@ -2013,8 +2019,8 @@ function scanRow(f) {
           body: JSON.stringify({ name: f.name.slice(0, 40), type: f.type, host: f.host, port: f.port }) });
         const j = await r.json();
         if (!r.ok) { $("scanErr").textContent = Tm(j.error || "No se pudo añadir"); b.disabled = false; return; }
-        cell.innerHTML = `<span class="tag">${esc(T("Añadida ✓"))}</span>`; toast(T("TV añadida"));
-        if (!curTV()) { await new Promise((ok) => setTimeout(ok, 150)); selectTV(j.id); }
+        cell.innerHTML = `<span class="tag">${esc(T("Añadida ✓"))}</span>`;
+        await afterTVAdded(j, !curTV());
       } catch (_) { $("scanErr").textContent = T("No se pudo contactar con el servidor"); b.disabled = false; }
     };
     cell.appendChild(b);
