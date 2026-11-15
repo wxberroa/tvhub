@@ -420,6 +420,9 @@ class AndroidDriver(Driver):
         super().__init__(cfg)
         self.focus = ""
         self.cmdq = asyncio.Queue()
+        self.shell = None
+        self._drain = None
+        self.last_cmd = 0.0
         self.streamer = Streamer(self)
 
     @property
@@ -462,6 +465,7 @@ class AndroidDriver(Driver):
     async def stop(self):
         await self.streamer.stop()
         await super().stop()
+        await self._close_shell()
         if self.host:
             await self.adb("disconnect", self.serial, timeout=5)
 
@@ -479,12 +483,14 @@ class AndroidDriver(Driver):
                     if not self.model:
                         _, m = await self.sh("getprop ro.product.model")
                         self.model = m.strip()
-                    _, f = await self.sh("dumpsys window | grep mCurrentFocus")
-                    m = re.search(r"\s([A-Za-z0-9_.]+)/", f)
-                    self.focus = m.group(1) if m else self.focus
+                    if time.monotonic() - self.last_cmd > 4:      # don't compete with key presses on a slow stick
+                        _, f = await self.sh("dumpsys window | grep mCurrentFocus")
+                        m = re.search(r"\s([A-Za-z0-9_.]+)/", f)
+                        self.focus = m.group(1) if m else self.focus
                 else:
                     self.model = ""
                     self.focus = ""
+                    await self._close_shell()
             except asyncio.CancelledError:
                 raise
             except Exception as e:  # keep the loop alive whatever happens
@@ -492,14 +498,56 @@ class AndroidDriver(Driver):
             await self.publish()
             await asyncio.sleep(3 if self.state == "device" else 5)
 
+    async def _open_shell(self):
+        """One long-lived `adb shell` that key presses are written to: no new adb process and no
+        transport handshake per key (that cost is what made Fire TV feel ~1 s behind)."""
+        p = await asyncio.create_subprocess_exec(
+            ADB, "-s", self.serial, "shell", stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+
+        async def drain():                     # never let the pipe fill up and block the shell
+            try:
+                while await p.stdout.read(4096):
+                    pass
+            except Exception:  # noqa: BLE001
+                pass
+        self._drain = asyncio.create_task(drain())
+        self.shell = p
+        return p
+
+    async def _close_shell(self):
+        p, self.shell = self.shell, None
+        if p and p.returncode is None:
+            try:
+                p.kill()
+                await p.wait()
+            except Exception:  # noqa: BLE001
+                pass
+
+    async def _send(self, batch):
+        """Write the commands to the persistent shell; if it is gone, reopen it once, then fall back to a one-shot call."""
+        for _ in range(2):
+            try:
+                p = self.shell if self.shell and self.shell.returncode is None else await self._open_shell()
+                p.stdin.write(("\n".join(batch) + "\n").encode())
+                await asyncio.wait_for(p.stdin.drain(), 5)
+                return
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:  # noqa: BLE001
+                log("android shell:", e)
+                await self._close_shell()
+        await self.sh("; ".join(batch), timeout=20)
+
     async def worker(self):
-        """Run queued shell commands in order; consecutive ones go in a single adb call."""
+        """Run queued shell commands in order; consecutive ones are written together."""
         while True:
             batch = [await self.cmdq.get()]
             while not self.cmdq.empty() and len(batch) < 12:
                 batch.append(self.cmdq.get_nowait())
             if self.state == "device":
-                await self.sh("; ".join(batch), timeout=20)
+                self.last_cmd = time.monotonic()
+                await self._send(batch)
 
     def key(self, name):
         self.cmdq.put_nowait(f"input keyevent KEYCODE_{name}")
