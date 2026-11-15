@@ -8,6 +8,11 @@ in `custom_components/tvhub/manifest.json` and `tvhub_addon/config.yaml`, and pu
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-11-15
+
+### Changed
+- Android TV / Fire TV: remote keys respond faster. TVHub keeps one `adb shell` open and writes the key presses to it instead of starting a new `adb` process for every press (that cost made Fire Stick feel about a second behind). The background check of the focused app no longer runs while you are using the remote.
+
 ## [0.9.2] - 2026-11-15
 
 ### Changed
